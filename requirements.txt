@@ -1,0 +1,5 @@
+py-cord
+python-dotenv==1.1.1
+PyNaCl==1.6.1
+yt-dlp==2025.11.12
+spotipy==2.25.2
