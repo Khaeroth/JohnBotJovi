@@ -103,7 +103,9 @@ SPOTIFY_CLIENT_SECRET=tu_client_secret
 
 Se incluye `Dockerfile` y `docker-compose.yml`.
 
-### Ejecutar con Docker Compose
+### Ejecutar con Docker Compose (local, con `.env`)
+
+Sí, el `docker-compose.yml` actual también funciona con Docker Compose normal usando `.env`.
 
 1. Crea tu `.env` a partir de `.env.example`.
 2. Levanta el servicio:
@@ -117,6 +119,8 @@ docker compose up -d --build
 ```bash
 docker compose logs -f
 ```
+
+Docker Compose carga automáticamente el archivo `.env` del directorio actual para resolver variables como `DISCORD_TOKEN`, `SPOTIFY_CLIENT_ID`, etc.
 
 > En Docker **no necesitas** `ffmpeg.exe` de Windows, porque la imagen instala FFmpeg para Linux.
 
@@ -145,6 +149,16 @@ Solo debes definir variables en el propio stack de Portainer:
 5. Redeploy del stack.
 
 > Recomendación para Raspberry Pi: usa imagen/base multi-arquitectura (como `python:3.12-slim`, ya usada en este repo) y evita montar volúmenes del código en producción.
+
+
+### ¿Un solo compose para Docker normal y Portainer?
+
+Sí: este repositorio ya usa un único `docker-compose.yml` válido para ambos casos.
+
+- **Docker Compose local**: usa variables desde `.env` automáticamente.
+- **Portainer Stack**: define esas mismas variables en **Environment variables** del stack.
+
+Ambos flujos usan el mismo bloque `environment` del compose.
 
 ## Comando de diagnóstico
 
