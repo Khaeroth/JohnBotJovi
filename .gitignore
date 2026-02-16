@@ -1,0 +1,11 @@
+# Entorno
+.venv/
+__pycache__/
+*.pyc
+
+# Variables sensibles
+.env
+
+# Sistema
+.DS_Store
+Thumbs.db
