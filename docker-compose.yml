@@ -1,0 +1,10 @@
+services:
+  johnbotjovi:
+    build: .
+    container_name: johnbotjovi
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+    command: ["python", "bot.py"]

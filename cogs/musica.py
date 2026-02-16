@@ -48,6 +48,25 @@ FFMPEG_OPTIONS = {
     "options": "-vn",
 }
 
+def resolve_ffmpeg_executable():
+    configured_path = os.getenv("FFMPEG_PATH")
+    if configured_path:
+        expanded = os.path.abspath(os.path.expanduser(configured_path))
+        if os.path.isfile(expanded):
+            return expanded
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    preferred_binaries = ["ffmpeg.exe", "ffmpeg"]
+    for binary_name in preferred_binaries:
+        candidate = os.path.join(project_root, binary_name)
+        if os.path.isfile(candidate):
+            return candidate
+
+    return shutil.which("ffmpeg")
+
+
+FFMPEG_EXECUTABLE = resolve_ffmpeg_executable()
+
 
 def create_youtube_search_query(artist, title):
     return f"{artist} - {title}"
@@ -332,7 +351,7 @@ class Musica(commands.Cog):
                 if not url_stream:
                     raise ValueError("No se obtuvo URL de stream reproducible.")
 
-                source = discord.FFmpegPCMAudio(url_stream, **FFMPEG_OPTIONS)
+                source = discord.FFmpegPCMAudio(url_stream, executable=FFMPEG_EXECUTABLE, **FFMPEG_OPTIONS)
                 source = discord.PCMVolumeTransformer(source, volume=self.default_volume)
 
                 log.info("🎵 Stream listo: %s | extractor=%s", self.song_label(next_item), fresh_info.get("extractor"))
@@ -741,7 +760,7 @@ class Musica(commands.Cog):
                 "before_options": f"-ss {seconds} {FFMPEG_OPTIONS['before_options']}",
                 "options": FFMPEG_OPTIONS["options"],
             }
-            new_source = discord.FFmpegPCMAudio(url_stream, **seek_options)
+            new_source = discord.FFmpegPCMAudio(url_stream, executable=FFMPEG_EXECUTABLE, **seek_options)
             new_source = discord.PCMVolumeTransformer(new_source, volume=self.default_volume)
 
             # Reemplazar reproducción actual sin alterar la cola.
@@ -763,7 +782,7 @@ class Musica(commands.Cog):
     @discord.slash_command(description="(MOD) Diagnóstico operativo del módulo de música.")
     @discord.default_permissions(administrator=True)
     async def musicdiag(self, ctx):
-        ffmpeg_path = shutil.which("ffmpeg") or "no encontrado"
+        ffmpeg_path = FFMPEG_EXECUTABLE or "no encontrado"
         ffmpeg_ver = "desconocida"
         if ffmpeg_path != "no encontrado":
             try:
