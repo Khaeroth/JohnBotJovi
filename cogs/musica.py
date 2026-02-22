@@ -43,6 +43,13 @@ YTDL_STREAM_FALLBACK_OPTIONS = {
     "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
 }
 
+YTDL_PLAYLIST_FLAT_OPTIONS = {
+    **YTDL_OPTIONS,
+    "extract_flat": "in_playlist",
+    "noplaylist": False,
+    "skip_download": True,
+}
+
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -nostdin",
     "options": "-vn",
@@ -113,6 +120,9 @@ def normalize_entry_url(entry):
     if not entry:
         return None
 
+    if not isinstance(entry, dict):
+        return None
+
     url = entry.get("webpage_url") or entry.get("url")
     if not url:
         return None
@@ -163,6 +173,21 @@ def extract_stream_info(url, primary, fallback):
         log.warning(f"Fallo extracción primaria para {url}: {e1}")
         return fallback.extract_info(url, download=False)
 
+def extract_playlist_flat_info(url):
+    flat_ytdl = yt_dlp.YoutubeDL(YTDL_PLAYLIST_FLAT_OPTIONS)
+    return flat_ytdl.extract_info(url, download=False)
+
+
+def is_youtube_playlist_url(value):
+    if not is_youtube_url(value):
+        return False
+
+    parsed = urllib.parse.urlparse(value)
+    query_params = urllib.parse.parse_qs(parsed.query)
+    if query_params.get("list"):
+        return True
+
+    return "/playlist" in parsed.path
 
 class Musica(commands.Cog):
     def __init__(self, bot):
@@ -233,6 +258,10 @@ class Musica(commands.Cog):
 
     async def extract_info_async(self, query, timeout=25):
         fut = self.bot.loop.run_in_executor(None, lambda q=query: ytdl.extract_info(q, download=False))
+        return await asyncio.wait_for(fut, timeout=timeout)
+
+    async def extract_playlist_flat_async(self, query, timeout=35):
+        fut = self.bot.loop.run_in_executor(None, lambda q=query: extract_playlist_flat_info(q))
         return await asyncio.wait_for(fut, timeout=timeout)
 
     async def resolve_stream_with_retry(self, source_query, retries=2):
@@ -472,6 +501,7 @@ class Musica(commands.Cog):
             for search_query in songs_to_process:
                 if len(songs_to_add) >= max_songs:
                     break
+                url_to_fetch = "desconocida"
                 try:
                     info = await self.extract_info_async(make_extraction_query(search_query), timeout=25)
                     if not info:
@@ -520,6 +550,38 @@ class Musica(commands.Cog):
                             )
                         )
                 except Exception as e:
+                    if is_youtube_playlist_url(search_query):
+                        log.warning(f"Extracción principal falló para playlist, probando fallback flat: {search_query}. Error: {e}")
+                        try:
+                            flat_info = await self.extract_playlist_flat_async(search_query, timeout=35)
+                            if not flat_info or not flat_info.get("entries"):
+                                continue
+
+                            if not is_spotify_source:
+                                playlist_title = flat_info.get("title", playlist_title)
+
+                            for entry in flat_info.get("entries", []):
+                                if len(songs_to_add) >= max_songs:
+                                    break
+                                try:
+                                    webpage = normalize_entry_url(entry)
+                                    if not webpage or not is_youtube_url(webpage):
+                                        continue
+                                    songs_to_add.append(
+                                        self.build_song(
+                                            webpage_url=webpage,
+                                            titulo=entry.get("title", "Desconocido"),
+                                            duration=entry.get("duration") or 0,
+                                            channel_id=ctx.channel.id,
+                                            requested_by=ctx.author.id,
+                                        )
+                                    )
+                                except Exception as song_e:
+                                    log.warning(f"⚠️ Se saltó una canción en fallback ({search_query}). Error: {song_e}")
+                            continue
+                        except Exception as fallback_e:
+                            log.warning(f"No se pudo extraer playlist con fallback flat para: {search_query}. Error: {fallback_e}")
+
                     log.warning(f"No se pudo extraer para: {search_query}. Error: {e}")
                     continue
 
